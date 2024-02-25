@@ -1,0 +1,959 @@
+---
+title: 'L’usage des réseaux sociaux est-il un frein à la réussite scolaire ?'
+author: "Mathieu Voluntario, Paul Henri"
+date : "Pour le 18 décembre 2023"
+output:
+  html_document:
+    toc: yes 
+    toc_float: yes
+    number_section: no
+    theme: flatly
+    df_print: paged
+    dev: png
+    hightlight: "tango"
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r options_chunk, echo = FALSE}
+knitr::opts_chunk$set(message = FALSE,
+                      echo = FALSE,
+                      warning = FALSE,
+                      eval = TRUE,
+                      fig.align = 'center') 
+```
+
+```{r}
+ #setwd("~/Desktop/mathieu/Projet R")
+```
+
+<!-- Package -->
+
+```{r packages}
+library(dplyr)
+library(knitr)
+library(kableExtra)
+library(ggplot2)
+library(forcats)
+library(tidyr)
+library(readr)
+library(stringr)
+library(plotly)
+theme_set(theme_minimal() )
+          
+
+```
+
+<!-- Importation de données -->
+
+```{r importation de la base}
+sondage <- read.csv2("sondage_version_finale.csv")
+```
+
+<!-- Modification de la variable d'intérêt -->
+
+```{r modification de la variable temps passe sur les reseaux}
+sondage$temps_reseaux <- ifelse(sondage$Temps.passé.par.jour.sur.les.réseaux.sociaux.en.heure <= 2, "Peu", "Beaucoup")
+```
+
+<!-- Création de variable en classe -->
+
+```{r creation de l age en classe}
+sondage$Age_classe <- ifelse(sondage$Age <= 18, "16 à 18 ans", 
+                      ifelse(sondage$Age <= 21, "19 à 21 ans", "22 ans et plus"))
+```
+
+```{r creation du temps de travail perso en classe}
+sondage <- sondage |> 
+  rename(Travail_perso = 
+         Temps.de.travail.personnel..scolaire..la.semaine.dernière.en.heure)
+
+
+sondage <- sondage |>
+  mutate(Travail_perso = as.numeric(Travail_perso),
+         Temps_travail_perso = cut(Travail_perso, 
+                                   breaks = c(-Inf, 2, 7, 14, 30, 50, Inf),
+                                   labels = c("1 : Désintéressé", "2 : Paresseux",
+                                              "3 : Impliqué", "4 : Déterminé", 
+                                              "5 : Exemplaire", 
+                                              "6 : Infatigable ou Menteur"),
+                                   include.lowest = TRUE)
+  )
+
+```
+
+```{r variable transport en commun}
+sondage$transport_en_commun <- ifelse(sondage$Moyen.de.transport.principal.pour.venir.à.la.faculté.au.quotidien == "en transport en commun (bus, tram, train)", "Oui", "Non")
+```
+
+```{r variable temps de trajet en min pour venir a la fac}
+sondage <- sondage |>
+  rename(trajet = Temps.de.trajets.en.minutes.pour.venir.à.la.faculté.au.quotidien)
+
+sondage <- sondage |>
+  mutate(trajet = as.numeric(trajet),
+         Temps_trajet = cut(trajet, 
+                                   breaks = c(-Inf, 5, 15, 25, 40, Inf),
+                                   labels = c("1 : Très court", "2 : Court",
+                                              "3 : Moyen", "4 : Long", 
+                                              "5 : Très long"),
+                                   include.lowest = TRUE)
+         )
+  
+```
+
+```{r variable age du tel}
+sondage <- sondage |>
+  mutate(Temps.de.possession.votre.téléphone.actuel.en.année = as.numeric(Temps.de.possession.votre.téléphone.actuel.en.année),
+         Age_tel = cut(Temps.de.possession.votre.téléphone.actuel.en.année, 
+                                   breaks = c(-Inf, 1, 2, 4, Inf),
+                                   labels = c("1 : 1 ans ou moins", 
+                                              "2 : Entre 1 et 2 ans",
+                                              "3 : Entre 2 et 4 ans", 
+                                              "4 : Plus de 4 ans"), 
+                                   include.lowest = TRUE)
+         )
+
+
+#si l'utilisation des réseaux sociaux est corrélé avec l'age du tel. Regarder s'il n'y a pas de corrélation entre l'age et l'age du tel . Si oui dire que les jeunes sont trop matériel, symptomatique des générations futures
+```
+
+```{r variable nb bonnes reponses}
+#table(sondage$nb_bonnes_reponses)
+#0-3 mauvais
+# 4-5 insuffisant
+# 6-7 : satisfaisant
+# 8 : très bon
+# 9-10 : excellent
+```
+
+```{r}
+sondage$Filière.de.votre.bac.si.pas.de.spécialité <-  ifelse(sondage$Filière.de.votre.bac.si.pas.de.spécialité == "Autre bas sans spécialité", "Autre bac sans spécialité", sondage$Filière.de.votre.bac.si.pas.de.spécialité)
+```
+
+```{r}
+sondage$phobie_sociale <- ifelse(sondage$phobie_sociale == 1, "Oui",
+                                 "Non")
+```
+
+
+<!-- Création de variable indicatrice -->
+
+```{r indicatrice bcp de tps passe sur les reseaux}
+sondage$ind_bcp_tps <- ifelse(sondage$temps_reseaux == "Beaucoup", 1, 0)
+```
+
+
+```{r indicatrice bac STMG}
+sondage$ind_STMG <- ifelse(sondage$Filière.de.votre.bac.si.pas.de.spécialité == "STMG",
+                           1, 0)
+```
+
+```{r temps passe sur le telephone}
+sondage <- sondage |>
+  mutate(Temps.passé.par.jour.sur.votre.téléphone.en.heure = as.numeric(Temps.passé.par.jour.sur.votre.téléphone.en.heure),
+         Temps_sur_tel = cut(Temps.passé.par.jour.sur.votre.téléphone.en.heure, 
+                                   breaks = c(-Inf, 2, 4, 6, Inf),
+                                   labels = c("1 : Entre 0 et 2 heures", 
+                                              "2 : Entre 2 et 4 heures",
+                                              "3 : Entre 4 et 6 heures", 
+                                              "4 : Plus de 6 heures"), 
+                                   include.lowest = TRUE)
+         )
+
+```
+
+<!-- Fonctions -->
+
+```{r fonction test du chi 2}
+
+test_chi2 <- function(x) {
+  table <- table(x, sondage$temps_reseaux)
+  test <- chisq.test(table)
+  output <- c(min(test$expected), test$p.value)
+  names(output) <- c("Eff. théo. min.", "p-value")
+  return(output)
+}
+```
+
+```{r fonction test comparaison de moyenne}
+test_moy <- function(x){ 
+  # x une variable quantitative 
+  # y une variable qualitative binaire 
+  test <- t.test(x~sondage$temps_reseaux) 
+  output <- c(test$estimate, test$p.value)
+  names(output) <- c(names(test$estimate),
+                     "p-value") 
+  return(output) 
+  }
+```
+
+```{r fonction kabbe}
+# A voir 
+```
+
+```{r fonction test correlation}
+test_cor <- function(y) { 
+  # x une variable quantitative 
+  # y une variable qualitative binaire 
+  test <- cor.test(sondage$ind_bcp_tps, y) 
+  output <- c("p-value" = test$p.value, 
+              "Coef de corrélation" = test$estimate)
+  return(output) 
+}
+```
+
+## Présentation des données 
+
+Notre analyse statistique repose sur les résultats d'un sondage mené cette année auprès des étudiants de la 
+[faculté de Droit Economie et Sciences Sociales de l'Université de Tours](https://droit.univ-tours.fr). Le sondage englobe  `r length(sondage)` variables, avec les réponses recueillies de `r nrow(sondage)` étudiants. Ainsi, la base de données est consituée de `r ncol(sondage)*nrow(sondage)` données.
+
+
+Initialement axée sur la **gérascophobie**, notre problématique visait à explorer une éventuelle corrélation entre la peur de vieillir et le désir de profiter de la vie étudiante. Par exemple, nous envisagions d'analyser si les étudiants gérascophobes participent davantage à des soirées que leurs pairs. Cependant, faute de données pertinentes (aucun étudiant n'a sélectionné cette phobie), nous avons orienté notre recherche vers une problématique totalement différente : <span style="color: red;">**L'usage des réseaux sociaux est-il un frein à la réussite scolaire ?**</span>
+
+
+Notre variable d'intérêt est donc la variable indiquant le **nombre en heure passé sur les réseaux sociaux**. Nous avons décidé de la modifier de manière suivante :
+
+```{r repartition variable d interet}
+P <- addmargins(round(prop.table(table(sondage$temps_reseaux)),4)*100)
+rownames(P)[3] <- "Total"
+
+P |>
+  kable(caption = "Temps passé sur les réseaux sociaux ", 
+        col.names = c("Temps passé", "Répartition")) |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered")) 
+
+```
+ 
+La modalité "**Peu**" correspond à une durée de *deux heures ou moins* du temps passé par jour des étudiants sur les réseaux sociaux et la modalité "**Beaucoup**" à une durée *supérieure à deux heures par jour*.
+
+Nous allons dans un premier temps définir le profil type des étudiants utilisant le plus les réseaux sociaux. Deuxièmement nous allons répondre à notre problématique en étudiant l'impact de l'utilisation des réseaux sociaux sur le temps consacré aux études. Enfin, nous étudierons l'impact des réseaux sociaux sur le test de culture générale.
+
+
+
+## Profil type
+
+Dans cette partie, nous allons étudier successivement les variables pouvant potentiellement **influer sur le nombre d'heures passés sur les réseaux sociaux**. Ce qui nous permettra d'établir un profil type d'étudiant amené à être davantage sur les réseaux sociaux. Dans notre base de données, le **réseau social préféré** des étudiants est **Instagram**:
+
+```{r graph reseau social prefere}
+graph <- sondage %>%
+  ggplot() +
+  aes(x = fct_infreq(Réseau.social.le.plus.utilisé), fill = Réseau.social.le.plus.utilisé) +
+  geom_bar(width = 0.5) +
+  scale_fill_manual(values = c("grey", "grey", "darkred", "grey", "grey", "grey", "grey")) +
+  labs(title = "Réseau social préféré des étudiants", x = " ", y = " ") +
+   guides(fill = FALSE)
+
+ggplotly(graph)
+```
+
+
+### Âge
+
+Nous allons tout d'abord nous pencher sur l'âge et voir une éventuelle corrélation entre l'âge des étudiants et leurs temps passé sur les réseaux sociaux.
+
+
+<div class="row">
+<div class="col-md-6">
+```{r tab repartition selon l age 2}
+T1 <- (table(sondage$Age_classe, sondage$temps_reseaux))
+T2 <- addmargins(T1)
+rownames(T2)[4] <- "Total"
+colnames(T2)[3] <- "Total"
+
+T2 |> 
+  kable(align = "c", 
+        caption = "Répartition des étudiants selon leur âge et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = TRUE, position = "center",bootstrap_options = c("striped", "bordered"))
+
+
+
+```
+
+</div>
+<div class="col-md-6">
+```{r tab repartition selon l age en pourcentage 2}
+
+T1 <- round(prop.table(table(sondage$Age_classe, sondage$temps_reseaux), margin = 1),3)*100
+T2 <- addmargins(T1, 2)
+colnames(T2)[3] <- "Total"
+T2 |> 
+  kable(align = "c", 
+        caption = "Répartition en pourcentage des étudiants selon leur âge et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE, position = "right", bootstrap_options = c("striped", "bordered")) |>
+row_spec(1, color = "red") |>
+  column_spec(3, color = "black") |>
+  column_spec(4, color = "black") 
+
+```
+</div>
+</div>
+
+La fonction **ggplotly** facilite la visualisation des résultats en permettant une interaction directe avec le graphique. En cliquant sur les barres qui nous intéressent, nous pouvons obtenir des informations précises sur les données correspondantes.
+
+```{r grap repartition selon l age}
+graph <- sondage |> ggplot() +
+  aes(fill = temps_reseaux, x = Age_classe) +
+  geom_bar (width = 0.5, position = "fill") +
+  labs(title = "Temps passé sur les réseaux sociaux selon l'âge",
+    x = " Age ", y = " ", 
+    fill = "Temps passé sur \n les réseaux sociaux") +
+  theme(legend.position = "right")  +
+        scale_fill_manual(values = c("Beaucoup" = "deeppink4", 
+                                     "Peu" = "yellowgreen"))
+ggplotly(graph)
+```
+
+
+A la lecture de ce graphique, nous remarquons donc au fil des années une augmentation des étudiants passant relativement peu de temps sur les réseaux sociaux. Pour la tranche d'âge de 16 à 18 ans, on passe d'une répartition équitable entre ceux qui passent beaucoup de temps et ceux qui en consacrent peu, à moins d'un tiers qui consacre beaucoup de temps aux réseaux sociaux chez les plus de 21 ans, comparativement à deux tiers. Nous pouvons donc conclure que **les réseaux sociaux occupent une place de plus en plus significative dans la vie des étudiants au fil des générations.**
+
+```{r}
+#cor(sondage$temps_reseaux, sondage$Age)
+```
+
+### Genre
+
+Nous allons examiner ensuite la variable du genre pour déterminer si l'un des deux sexes parmi les étudiants de la faculté des 2 Lions consacre plus de temps aux réseaux sociaux que l'autre.
+
+<div class="row">
+<div class="col-md-6">
+```{r tab repartition selon le genre}
+T1 <- (table(sondage$Genre, sondage$temps_reseaux))
+T2 <- addmargins(T1)
+rownames(T2)[3] <- "Total"
+colnames(T2)[3] <- "Total"
+T2 |> 
+  kable(align = "c", 
+        caption = "Répartition des étudiants selon leur genre et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered")) 
+
+```
+
+</div>
+<div class="col-md-6">
+
+```{r tab repartition selon le genre en pourcentage}
+T1 <- round(prop.table(table(sondage$Genre, sondage$temps_reseaux), margin = 1),4)*100
+ T2 <- addmargins(T1, 2)
+ colnames(T2)[3] <- "Total"
+ T2 |> 
+  kable(align = "c", 
+        caption = "Répartition en pourcentage des étudiants selon leur genre et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered"))  |>
+row_spec(1, color = "red") |>
+  column_spec(3, color = "black") |>
+  column_spec(4, color = "black")
+
+```
+
+</div>
+</div>
+
+
+```{r graph repartition selon le genre}
+graph <- sondage |> ggplot() +
+  aes(fill = temps_reseaux, x = temps_reseaux) +
+  geom_bar () +
+  labs(title = "Temps passé sur les réseaux sociaux selon le genre",
+    x = "Genre", y = " ",
+     fill = "Temps passé sur \n les réseaux sociaux")+
+  facet_grid(~Genre) +
+  theme(legend.position = "right") +
+        scale_fill_manual(values = c("Beaucoup" = "deeppink4", 
+                                     "Peu" = "yellowgreen"))
+
+ggplotly(graph)  
+```
+
+En analysant les tableaux et graphiques, nous constatons que près de 58% des filles consacrent une quantité significative de temps sur les réseaux sociaux, contrairement à 37% chez les garçons. Cela représente un écart notable de 21 points de pourcentage. Ainsi, ces données indiquent que **le genre féminin consacre davantage de temps aux réseaux sociaux que son homologue masculin.**
+
+### Année d'étude
+
+Nous allons à présent nous intéresser à la variable "année d'étude" afin de déterminer si le temps consacré aux réseaux sociaux varie en fonction du niveau d'études des étudiants.
+
+<div class="row">
+<div class="col-md-6">
+```{r tab repartition selon l annee d etude}
+T1 <- (table(sondage$Année.d.étude, sondage$temps_reseaux))
+T2 <- addmargins(T1)
+rownames(T2)[4] <- "Total"
+colnames(T2)[3] <- "Total"
+T2 |> 
+  kable(align = "c", 
+        caption = "Répartition des étudiants selon leur niveau d'étude et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered")) 
+
+```
+
+</div>
+<div class="col-md-6">
+
+```{r tab repartition selon l annee d etude en pourcentage}
+T1 <- round(prop.table(table(sondage$Année.d.étude, sondage$temps_reseaux), margin = 1),4)*100
+ T2 <- addmargins(T1, 2)
+ colnames(T2)[3] <- "Total"
+ T2 |> 
+  kable(align = "c", 
+        caption = "Répartition en pourcentage des étudiants selon leur niveau d'étude et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered")) |>
+row_spec(1, color = "red") |>
+  column_spec(3, color = "black") |>
+  column_spec(4, color = "black") 
+
+```
+
+</div>
+</div>
+
+```{r graph repartition selon l annee d etude}
+graph <- sondage |> ggplot() +
+  aes(fill = temps_reseaux, x = fct_rev(Année.d.étude)) +
+  geom_bar (width = 0.5) +
+  coord_flip() +
+  labs(title = "Temps passé sur les réseaux sociaux selon l'année d'étude",
+    x = "Niveau d'étude", y = " ", 
+    fill = "Temps passé sur \n les réseaux sociaux") +
+  theme(legend.position = "right")  +
+        scale_fill_manual(values = c("Beaucoup" = "deeppink4", 
+                                     "Peu" = "yellowgreen"))
+ggplotly(graph)
+```
+
+À travers l'analyse des tableaux et graphiques, il ressort que plus de 48 % des étudiants en première année (L1) consacrent une quantité importante de temps sur les réseaux sociaux, relativement à environ 36 % et 39 % pour les étudiants en deuxième et troisième année. Cette observation met en évidence la tendance selon laquelle, **à mesure que le niveau d'étude progresse, le temps consacré aux réseaux sociaux diminue chez les étudiants.**
+
+### Type de bac obtenu
+
+Nous allons nous attarder sur la variable du type de baccalauréat obtenu par les étudiants et chercher à déterminer s'il existe un lien entre le temps alloué par les étudiants aux réseaux sociaux et le type de baccalauréat qu'ils ont obtenu.
+
+<div class="row">
+<div class="col-md-6">
+```{r tab repartition selon le type de bac}
+T1 <- (table(sondage$Filière.de.votre.bac.si.pas.de.spécialité, sondage$temps_reseaux))
+T2 <- addmargins(T1)
+rownames(T2)[1] <- "Autre bac sans spécialité"
+rownames(T2)[6] <- "Total"
+colnames(T2)[3] <- "Total"
+T2 |> 
+  kable(align = "c", 
+        caption = "Répartition des étudiants selon leur type de bac \n et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered")) 
+
+```
+
+</div>
+<div class="col-md-6">
+
+```{r tab repartition selon le type de bac en pourcentage}
+T1 <- round(prop.table(table(sondage$Filière.de.votre.bac.si.pas.de.spécialité, sondage$temps_reseaux), margin = 1),4)*100
+ T2 <- addmargins(T1, 2)
+ rownames(T2)[1] <- "Autre bac sans spécialité"
+ colnames(T2)[3] <- "Total"
+ T2 |> 
+  kable(align = "c", 
+        caption = "Répartition en pourcentage des étudiants selon leur type de bac et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered"))  |>
+row_spec(2, color = "red") |>
+row_spec(5, color = "orange") |>
+  column_spec(3, color = "black") |>
+  column_spec(4, color = "black")
+
+```
+
+</div>
+</div>
+
+```{r graph repartition selon le type de bac}
+graph <- sondage |> ggplot() +
+  aes(fill = temps_reseaux, x = fct_rev(fct_infreq(Filière.de.votre.bac.si.pas.de.spécialité))) +
+  geom_bar (width = 0.5) +
+  coord_flip() +
+  labs(title = "Temps passé sur les réseaux sociaux selon le \n type de bac",
+    x = "Type de bac", y = " ", 
+    fill = "Temps passé sur \n les réseaux sociaux") +
+  theme(legend.position = "right")  +
+        scale_fill_manual(values = c("Beaucoup" = "deeppink4", 
+                                     "Peu" = "yellowgreen"))
+ggplotly(graph)
+```
+
+En scrutant les tableaux et graphiques, nous constatons que, pour l’ensemble des filières, les étudiants consacrent en moyenne légèrement moins de temps sur les réseaux sociaux que beaucoup, exception faite des étudiants en STMG, parmi lesquels près de 67% passent beaucoup de temps sur les réseaux sociaux. Il est important de souligner que cette constatation doit être relativisée en raison du faible nombre d'observations, seulement 6 répondants ayant obtenu un baccalauréat STMG.
+
+Pour savoir si cette constatation doit être relativisée ou non, nous allons procéder à un test de corrélation.
+
+##### Test de corrélation 
+
+```{r}
+#test_cor(sondage$ind_STMG)
+```
+
+Nous observons que la p-value est bien supérieure à 0,05, montrant ainsi qu'à cause du faible nombre d'observations, le test n'est pas significatif. **Nous ne pouvons pas conclure à une corrélation entre le fait d'avoir obtenu un baccalauréat STMG et de passer davantage de temps sur les réseaux sociaux.**
+
+#### Enseignement de spécialité
+
+
+Nous allons approfondir notre analyse en nous concentrant sur la partie la plus représentée, à savoir le baccalauréat avec spécialité, afin d'explorer s'il existe éventuellement une spécialité où les étudiants consacrent plus de temps aux réseaux sociaux par rapport aux autres enseignements de spécialité.
+
+```{r les septs graph}
+spe_cols <- grep("^spe", names(sondage), value = TRUE)
+
+plot_list <- list()
+
+graph_width <- 800
+graph_height <- 600
+
+# Boucle pour créer des graphiques pour chaque spécialité 
+for (spe_col in spe_cols) {
+  graph <- sondage |>
+     ggplot() +
+    aes(x = spe_col, fill = temps_reseaux) +
+    geom_bar(position = "dodge") +
+    labs(title = "Temps passé sur les réseaux sociaux selon la spécialité choisie") +
+    facet_grid(~get(spe_col)) +
+    theme(legend.position = "none")  +
+        scale_fill_manual(values = c("Beaucoup" = "deeppink4", 
+                                     "Peu" = "yellowgreen"))
+
+plot_list[[spe_col]] <- ggplotly(graph, width = graph_width, height = graph_height)
+}
+
+#Afficher les graphiques sur la même fenêtre graphique
+subplot(plot_list[[1]], plot_list[[2]], plot_list[[3]],
+        plot_list[[4]], plot_list[[5]], plot_list[[6]],
+        plot_list[[7]], nrows = 4)
+```
+
+Nous observons donc grâce aux petits graphiques qu'aucune spécialité ne se distingue nettement des autres à l'exception potentielle de la **spécialité SES** (où la répartition est équitable entre les étudiants qui consacrent beaucoup de temps aux réseaux et ceux qui n'y consacrent que peu de temps) et de la **spécialité HLP** (cependant, avec seulement 3 observations, les résultats ne sont pas suffisamment significatifs à notre avis).
+
+Afin d’évaluer la signification des résultats obtenus, nous allons entreprendre un test de corrélation pour les deux enseignements de spécialité mentionnés précédemment, en relation avec la variable représentant le temps que les étudiants consacrent sur les réseaux sociaux.
+
+##### Test de corrélation
+
+```{r test cor specialite SES}
+#test_cor(sondage$spe_SES)
+```
+
+Le test de corrélation entre la spécialité SES et la variable temps consacré aux réseaux sociaux n’est pas significatif comme en témoigne la p-value d’une valeur de 0,4229. De plus, le coefficient de corrélation, pouvant varier de 0 à 1, est très proche de 0 (environ 0,06), indiquant une **absence de corrélation linéaire entre ces deux variables.**
+
+```{r test cor specialite HLP}
+#test_cor(sondage$spe_HLP)
+```
+
+De manière similaire, le test de corrélation entre le temps passé sur les réseaux sociaux par les étudiants et la spécialité HLP n'est pas non plus significatif, comme en témoigne la p-value d'environ 0,43.  Nous constatons également que le coefficient de corrélation est extrêmement proche de 0 (environ 0,05), confirmant une nouvelle fois l’**absence de corrélation linéaire entre ces deux variables.**
+
+### Transport en commun : oui ou non
+
+Nous allons désormais explorer la variable du moyen de transport principal utilisé quotidiennement pour se rendre à la faculté, en mettant particulièrement l'accent sur l'analyse d'une éventuelle différence de temps passé sur les réseaux sociaux entre les étudiants utilisant les transports en commun et ceux utilisant d'autres moyens de transport.
+
+<div class="row">
+<div class="col-md-6">
+```{r tab repartition selon le prise de transport en commun}
+T1 <- (table(sondage$transport_en_commun, sondage$temps_reseaux))
+T2 <- addmargins(T1)
+rownames(T2)[3] <- "Total"
+colnames(T2)[3] <- "Total"
+T2 |> 
+  kable(align = "c", 
+        caption = "Répartition des étudiants selon leur moyen de transport et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered")) 
+
+```
+</div>
+<div class="col-md-6">
+```{r tab repartition selon le prise de transport en commun en pourcentage}
+T1 <- round(prop.table(table(sondage$transport_en_commun, sondage$temps_reseaux), margin = 1),4)*100
+ T2 <- addmargins(T1, 2)
+ colnames(T2)[3] <- "Total"
+ T2 |> 
+  kable(align = "c", 
+        caption = "Répartition en pourcentage des étudiants selon leur moyen de transport et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered"))  |>
+row_spec(2, color = "red") |>
+  column_spec(3, color = "black") |>
+  column_spec(4, color = "black")
+
+```
+</div>
+</div>
+```{r graph repartition selon le prise de transport en commun}
+graph <- sondage |> ggplot() +
+  aes(fill = temps_reseaux, x = temps_reseaux) +
+  geom_bar () +
+  labs(title = "Temps passé sur les réseaux sociaux selon le moyen de transport",
+    x = " Transport en commun : Oui ou non ", y = " ", 
+    fill = "Temps passé sur \n les réseaux sociaux")+
+  facet_grid(~transport_en_commun) +
+  theme(legend.position = "right")  +
+        scale_fill_manual(values = c("Beaucoup" = "deeppink4", 
+                                     "Peu" = "yellowgreen"))
+ggplotly(graph)
+```
+
+D'après les résultats issus une nouvelle fois des tableaux et graphiques, nous constatons qu'environ 49 % des étudiants empruntant les transports en commun consacrent beaucoup de temps aux réseaux sociaux, tandis que ce chiffre s'élève à seulement 36 % pour les étudiants optant pour d'autres moyens de locomotion (ce qui représente un écart significatif de 13 points de pourcentage). Ces observations suggèrent que **les étudiants se rendant à la faculté par les transports en commun consacrent davantage de temps aux réseaux sociaux que leurs pairs utilisant d'autres moyens de transport.**
+
+
+### Nombre de soirée(s)
+
+Nous allons à présent examiner la variable du nombre de soirées pour déterminer s'il existe éventuellement une corrélation entre le nombre de soirées auxquelles participent les étudiants de l'Université de Tours et le temps qu'ils consacrent aux réseaux sociaux.
+
+<div class="row">
+<div class="col-md-6">
+```{r tab repartition selon le nb de soiree}
+T1 <- table(sondage$temps_reseaux, sondage$Nombre.de.soirées.par.semaine.en.moyenne)
+T2 <- addmargins(T1)
+rownames(T2)[3] <- "Total"
+colnames(T2)[8] <- "Total"
+T2 |> 
+  kable(align = "c", 
+        caption = "Répartition des étudiants selon le nombre de soirée et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered")) |>
+ add_header_above(c(" " = 1, "Moins d'une soirée par semaine" = 3,
+                    "1 à 2 soirées par semaine" = 2, "3 soirées ou plus" = 2,
+                    " " = 1))
+```
+</div>
+<div class="col-md-6">
+```{r tab repartition selon le nb de soiree en pourcentage}
+T1 <- round(prop.table(table(sondage$temps_reseaux, sondage$Nombre.de.soirées.par.semaine.en.moyenne), margin = 2),4)*100
+ T2 <- addmargins(T1, 1)
+ rownames(T2)[3] <- "Total"
+ T2 |> 
+  kable(align = "c", 
+        caption = "Répartition en pourcentage des étudiants selon le nombre de soirée et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered")) |>
+ add_header_above(c(" " = 1, "Moins d'une soirée par semaine" = 3,
+                    "1 à 2 soirées par semaine" = 2, "3 soirées ou plus" = 2)) |>
+column_spec(6, color = "red") |>
+  row_spec(2, color = "black") |>
+  row_spec(3, color = "black")
+
+```
+</div>
+</div>
+```{r graph repartition selon le nb de soiree}
+graph <- sondage |> ggplot() +
+  aes(fill = temps_reseaux, x = Nombre.de.soirées.par.semaine.en.moyenne) +
+  geom_bar (width = 0.5) +
+  labs(title = "Temps passé sur les réseaux sociaux selon le nombre de soirée",
+    x = "Nombre de soirée", y = " ", 
+    fill = "Temps passé sur \n les réseaux sociaux") +
+  theme(legend.position = "right")  +
+        scale_fill_manual(values = c("Beaucoup" = "deeppink4", 
+                                     "Peu" = "yellowgreen"))
+ggplotly(graph)
+```
+
+Après analyse des résultats, nous percevons que **la participation accrue des étudiants à des soirées est associée à une augmentation du temps passé sur les réseaux sociaux.** Nous pouvons ainsi émettre l'hypothèse qu'un étudiant plus connecté et actif sur les réseaux sociaux pourrait avoir une vie étudiante potentiellement plus animée, comme le suggère la corrélation positive entre le nombre de soirées et le temps consacré aux réseaux.
+
+### Phobie sociale
+
+Nous allons dorénavant nous intéresser à la variable phobie en mettant l'accent sur la phobie sociale, afin d'analyser une éventuelle corrélation entre la phobie sociale des étudiants et le temps qu'ils consacrent aux réseaux sociaux.
+
+<div class="row">
+<div class="col-md-6">
+```{r tab repartition selon la phobie sociale}
+T1 <- table(sondage$phobie_sociale ,sondage$temps_reseaux)
+T2 <- addmargins(T1)
+rownames(T2)[1] <- "Non"
+rownames(T2)[2] <- "Oui"
+rownames(T2)[3] <- "Total"
+colnames(T2)[3] <- "Total"
+T2 |> 
+  kable(align = "c", 
+        caption = "Répartition des étudiants selon leur phobie sociale et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered"))
+```
+</div>
+<div class="col-md-6">
+```{r tab repartition selon la phobie sociale en poucentage}
+T1 <- round(prop.table(table(sondage$phobie_sociale, sondage$temps_reseaux), margin = 1),4)*100
+ T2 <- addmargins(T1, 2)
+ rownames(T2)[1] <- "Non"
+rownames(T2)[2] <- "Oui"
+ colnames(T2)[3] <- "Total"
+ T2 |> 
+  kable(align = "c", 
+        caption = "Répartition en pourcentage des étudiants selon leur phobie sociale et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered"))
+```
+</div>
+</div>
+```{r graph repartition selon la phobie sociale}
+graph <- sondage |> ggplot() +
+  aes(x = phobie_sociale, fill = temps_reseaux) +
+  geom_bar (position = "dodge",) +
+  labs(title = "Temps passé sur les réseaux sociaux selon leur phobie sociale",
+    x = "Phobie sociale ", y = " ", 
+    fill = "Temps passé sur \n les réseaux sociaux") +
+  theme(legend.position = "right")  +
+        scale_fill_manual(values = c("Beaucoup" = "deeppink4", 
+                                     "Peu" = "yellowgreen"))
+ggplotly(graph)
+```
+
+Selon les informations fournies par le graphique et les tableaux, nous distinguons que 46,67 % des étudiants souffrant de phobie sociale déclarent passer beaucoup de temps sur les réseaux sociaux, tandis que ce pourcentage est de 44,04 % pour les étudiants ne présentant pas de phobie sociale. Bien qu'un léger écart soit observé entre ces deux résultats, il ne semble pas être statistiquement significatif. En somme, **la phobie sociale semble avoir une influence minime, voire nulle, sur la propension à allouer davantage de temps aux réseaux sociaux.**
+
+Pour confirmer la non-significativité des résultats obtenus précédemment, nous allons procéder à un test de corrélation.
+
+##### Test de corrélation 
+
+```{r test cor phobie sociale}
+#test_cor(sondage$phobie_sociale)
+```
+
+Le test de corrélation entre la variable phobie sociale et la variable temps consacré aux réseaux sociaux n’est pas significatif comme en atteste la p-value d’environ 0,84. Par ailleurs, le coefficient de corrélation est très proche de 0 (environ 0,01), indiquant ainsi l’**absence de corrélation linéaire entre ces deux variables.**
+
+### Âge du téléphone
+
+Nous allons à présent nous pencher sur la variable de l'âge du téléphone. Il semble tout à fait logique de penser que plus un étudiant dispose d'un téléphone récent, plus il est susceptible de passer du temps sur les réseaux sociaux. Nous allons donc vérifier si cette variable exerce effectivement une influence négative sur le temps que les étudiants consacrent aux réseaux sociaux.
+
+<div class="row">
+<div class="col-md-6">
+```{r tab repartition selon l age du tel}
+T1 <- table(sondage$Age_tel ,sondage$temps_reseaux)
+T2 <- addmargins(T1)
+rownames(T2)[5] <- "Total"
+colnames(T2)[3] <- "Total"
+T2 |> 
+  kable(align = "c", 
+        caption = "Répartition des étudiants selon l'âge de leur téléphone et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered"))|> 
+  pack_rows("Récent", 1, 2) |> #sert à délimiter le tableau en 2 parties
+  pack_rows("Moins récent", 3, 4) |> 
+   pack_rows("Total", 5, 5)
+```
+</div>
+<div class="col-md-6">
+```{r tab repartition selon l age du tel en pourcentage}
+T1 <- round(prop.table(table(sondage$Age_tel, sondage$temps_reseaux), margin = 1),4)*100
+ T2 <- addmargins(T1, 2)
+ colnames(T2)[3] <- "Total"
+ T2 |> 
+  kable(align = "c", 
+        caption = "Répartition en pourcentage des étudiants selon l'âge de leur téléphone et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered")) |>
+row_spec(4, color = "red") |>
+  column_spec(3, color = "black") |>
+  column_spec(4, color = "black")|> 
+  pack_rows("Récent", 1, 2) |> 
+  pack_rows("Moins récent", 3, 4) 
+```
+</div>
+</div>
+```{r graph repartition selon l age du tel}
+graph <- sondage |> ggplot() +
+  aes(fill = temps_reseaux, x = Age_tel) +
+  geom_bar (width = 0.5) +
+  labs(title = "Temps passé sur les réseaux sociaux selon l'âge de leur téléphone",
+    x = "Age du téléphone ", y = " ", 
+    fill = "Temps passé sur \n les réseaux sociaux") +
+  theme(legend.position = "right",
+        axis.text.x = element_text(angle = 45)) +
+        scale_fill_manual(values = c("Beaucoup" = "deeppink4", 
+                                     "Peu" = "yellowgreen"))
+ggplotly(graph)
+```
+
+En dépit des préjugés légitimes que nous aurions pu avoir au début de l'analyse, nous observons que 68,18 % des étudiants qui possèdent leur téléphone depuis plus de 4 ans consacrent beaucoup de temps aux réseaux sociaux, soit au moins 23 points de pourcentage de plus que dans les autres catégories (pour ceux qui ont leur téléphone depuis moins longtemps). Toutefois, il est important de noter **la nette disparité du nombre d'observations entre les différentes catégories**, avec seulement 22 observations pour la catégorie "plus de 4 ans" par rapport à au moins 55 pour les autres catégories. Cette disparité soulève la limite de notre analyse, car les résultats peuvent être influencés par le faible nombre d'observations dans cette catégorie, suggérant ainsi que le test peut ne pas être significatif.
+
+##### Test de corrélation
+
+Pour savoir si le test est significatif et si les variables sont belles et bien corrélées, nous allons procéder à un test de corrélation : 
+
+```{r test cor age tel}
+#test_cor(sondage$Temps.de.possession.votre.téléphone.actuel.en.année)
+```
+
+Le test de corrélation entre la variable de l’âge du téléphone et le temps consacré aux réseaux sociaux est statistiquement significatif, signalé par la p-value d’une valeur de 0,04 (inférieure donc à 0,05). De plus, le coefficient de corrélation s’élevant à environ 0,14, souligne que **bien que la corrélation positive soit présente, elle demeure légère.**
+
+
+### Source d'info : Réseaux sociaux
+
+Nous allons conclure l'établissement de notre profil type d'étudiant consacrant le plus de temps aux réseaux sociaux par l’analyse de la variable de la source d'information. Nous allons déterminer si le fait que les étudiants utilisent les réseaux sociaux comme source d'information est associé à une augmentation du temps qu'ils passent sur ces plateformes.
+
+<div class="row">
+<div class="col-md-6">
+```{r tab repartition selon la source d info}
+T1 <- table(sondage$infosource_RS ,sondage$temps_reseaux)
+T2 <- addmargins(T1)
+rownames(T2)[1] <- "Non"
+rownames(T2)[2] <- "Oui"
+rownames(T2)[3] <- "Total"
+colnames(T2)[3] <- "Total"
+T2 |> 
+  kable(align = "c", 
+        caption = "Répartition des étudiants selon leur source d'information et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered"))
+```
+</div>
+<div class="col-md-6">
+```{r tab repartition selon la source d info en pourcentage}
+T1 <- round(prop.table(table(sondage$infosource_RS, sondage$temps_reseaux), margin = 1),4)*100
+ T2 <- addmargins(T1, 2)
+rownames(T2)[1] <- "Non"
+rownames(T2)[2] <- "Oui"
+ colnames(T2)[3] <- "Total"
+ T2 |> 
+  kable(align = "c", 
+        caption = "Répartition en pourcentage des étudiants selon leur source d'information et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered")) |>
+row_spec(2, color = "red") |>
+  column_spec(3, color = "black") |>
+  column_spec(4, color = "black")
+```
+</div>
+</div>
+
+```{r graph repartition selon la source d info}
+graph <- sondage |> ggplot() +
+  aes(fill = temps_reseaux, x = infosource_RS) +
+  geom_bar (width = 0.5) +
+  labs(title = "Temps passé sur les réseaux sociaux selon eur source d'information",
+    x = "Source d'information : Réseaux sociaux ", y = " ", 
+    fill = "Temps passé sur \n les réseaux sociaux") +
+  theme(legend.position = "right")  +
+        scale_fill_manual(values = c("Beaucoup" = "deeppink4", 
+                                     "Peu" = "yellowgreen"))
+ggplotly(graph)
+```
+
+Les résultats du graphique révèlent tout d'abord qu'une **grande majorité des étudiants (182 sur 208) utilisent les réseaux sociaux comme source d'information.** Parmi ceux n’utilisant pas les réseaux sociaux à cette fin (26 personnes), nous constatons qu'un seul étudiant sur les 26 consacre beaucoup de temps aux réseaux, tandis que les autres y consacrent peu de temps. En revanche, pour les étudiants utilisant les réseaux sociaux comme source d'information, une répartition parfaitement équilibrée est observée : 91 étudiants passent beaucoup de temps sur les réseaux sociaux, tandis que 91 autres y consacrent peu de temps.
+
+### Etablissement du profil type
+
+Grâce aux variables précédemment étudiés nous sommes en mesure de définir un profil type d’étudiant qui présente une propension accrue à consacrer davantage de temps aux réseaux sociaux. Ce profil type se dessine ainsi : **il s’agit d’une étudiante de 16 à 18 ans, inscrite en première année de licence (L1) et ayant donc suivi une filière de baccalauréat avec spécialité. Elle emprunte les transports en commun pour se rendre quotidiennement à la faculté, participe à au moins une soirée par semaine, utilise les réseaux sociaux également comme source d’information, et privilégie Instagram comme plateforme préférée.**
+
+## Conclusion
+
+Suite à cette analyse approfondie et à la définition du profil type, une question émerge naturellement : <span style="color: red;">**le temps consacré aux les réseaux sociaux a-t-il réellement un impact sur la réussite scolaire ?**</span> Plus précisément, <span style="color: red;">**est-ce que ce temps passé sur les réseaux sociaux empiète sur le temps dédié aux études ?**</span> 
+
+
+
+<div class="row">
+<div class="col-md-6">
+```{r tab repartition selon tps travail perso}
+T1 <- table(sondage$Temps_travail_perso ,sondage$temps_reseaux)
+T2 <- addmargins(T1)
+rownames(T2)[7] <- "Total"
+colnames(T2)[3] <- "Total"
+T2 |> 
+  kable(align = "c", 
+        caption = "Répartition des étudiants selon leur temps de travail personne et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered"))
+```
+</div>
+<div class="col-md-6">
+```{r tab repartition selon tps travail perso en pourcentage}
+T1 <- round(prop.table(table(sondage$Temps_travail_perso, sondage$temps_reseaux), margin = 1),4)*100
+ T2 <- addmargins(T1, 2)
+ colnames(T2)[3] <- "Total"
+ T2 |> 
+  kable(align = "c", 
+        caption = "Répartition en pourcentage des étudiants selon leur temps de travail personne et leur temps passé sur les réseaux sociaux") |>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered")) |>
+row_spec(1, color = "red") |>
+   row_spec(6, color = "deeppink") |>
+  column_spec(3, color = "black") |>
+  column_spec(4, color = "black")
+```
+</div>
+</div>
+
+Comme nous pouvons le remarquer, la modalité infatigable présente des **valeurs aberrantes** ne contribuant guère à l’analyse des résultats. Par conséquent, nous exclurons cette catégorie de notre conclusion.
+
+
+```{r graph tps travail perso}
+palette_turbo <- viridisLite::viridis(10)
+graph <- sondage |> ggplot() +
+  aes(fill = Temps_travail_perso, x = Temps_travail_perso) +
+  geom_bar () +
+  labs(title = "Temps passé sur les réseaux selon le  temps de travail personnel",
+    x = "", y = " ")+
+  facet_grid(~temps_reseaux) +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 45)) +
+  scale_fill_manual(values = palette_turbo)
+ggplotly(graph)
+```
+
+```{r test d independance tps travail}
+# Exécuter la fonction test_chi2 et stocker la sortie dans un objet
+result <- test_chi2(sondage$Temps_travail_perso)
+
+# Afficher la sortie sous forme de tableau avec kable
+kable(result, caption = "Résultats du test du chi2")|>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered"))
+```
+
+
+```{r test comparaison moy tps travail}
+result <- test_moy(sondage$Travail_perso)
+
+kable(result, caption = "Résultats du test de comparaison de moyenne")|>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered"))
+```
+
+Les résultats des deux tests, qu’il s’agisse du test d’indépendance ou du test de comparaison de moyenne, ne montrent pas de significativité. Par conséquent, cela implique donc que <span style="color: red;">**l’utilisation intensive des réseaux n’a aucun impact, que ce soit positif ou négatif, sur la réussite scolaire.**</span>  Contrairement à ce que l’on pourrait penser, <span style="color: red;">le temps consacré aux réseaux sociaux ne semble donc pas empiéter sur le temps dédié aux études.</span> 
+
+
+## Ouverture
+
+Après avoir apporté une superbe réponse à notre problématique, il est légitime de se questionner sur d’éventuelles idées préconçues injustifiées concernant les réseaux sociaux, notamment celle selon laquelle ils pourraient hébéter leurs utilisateurs. Pour notre ouverture, nous nous interrogerons donc sur **l’impact des réseaux sociaux sur la vie en général.** <span style="color: red;">**Est-elle néfaste, entraînant un appauvrissement intellectuel/culturel ou au contraire, constitue-t-elle une source d’enrichissement ?**</span> 
+
+```{r graph nb bonnes réponses}
+sondage |> 
+  ggplot() +
+  aes(x = nb_bonnes_reponses, fill = temps_reseaux) +
+  geom_density(alpha = 0.8) +  # Utilisation d'alpha pour voir les superpositions
+  labs(title = "Densité du temps passé sur les réseaux selon le nombre de bonnes réponses",
+       x = "Nombre de bonnes réponses", y = "", 
+    fill = "Temps passé sur \n les réseaux sociaux") +
+  facet_grid(~temps_reseaux) +
+  theme(legend.position = "none") +
+  scale_fill_manual(values = c("Beaucoup" = "deeppink4", "Peu" = "yellowgreen"))
+
+```
+
+```{r test d independance nb bonnes réponses, error=FALSE}
+result <- test_chi2(sondage$nb_bonnes_reponses)
+
+kable(result, caption = "Résultats du test du chi2")|>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered"))
+```
+
+Pour le test d’indépendance, la p-value observée est d’environ 0,0001, clairement bien inférieure à 0,05. Cela indique que **les variables ne sont pas indépendantes mais sont effectivement bien liées entre elles.**
+
+```{r test de correlation nb bonnes réponses}
+#test_cor(sondage$nb_bonnes_reponses)
+```
+
+Le test de corrélation nous apporte une précision supplémentaire en confirmant une **corrélation négative entre ces variables.**
+
+```{r test comparaison moy nb bonnes réponses}
+result <- test_moy(sondage$nb_bonnes_reponses)
+
+kable(result, caption = "Résultats du test de comparaison de moyenne")|>
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "bordered"))
+```
+
+Les résultats du test de moyenne sont également significatifs avec une p-value est inférieure à 0,05. Ainsi, il est évident que **ceux qui consacrent moins de temps aux réseaux sociaux présentent un niveau culturel supérieur que leurs pairs passant davantage de temps sur ces plateformes.** Cela se reflète bien dans les résultats avec **7,72** bonnes réponses sur 10 possibles pour le groupe consacrant peu de temps, comparé à **6,52** bonnes réponses sur 10 possibles pour l’autre groupe.
+
+
+```{r graph violin}
+sondage |>
+  ggplot() + 
+  aes(x=nb_bonnes_reponses, y=Travail_perso, fill = temps_reseaux) +
+  geom_violin()  +
+  labs(title = "Nombre de bonnes réponses selon le temps passé \n sur les réseaux sociau",
+       x = "Nombre de bonnes réponses", y = "", 
+    fill = "Temps passé sur \n les réseaux sociaux") +
+        scale_fill_manual(values = c("Beaucoup" = "deeppink4", 
+                                     "Peu" = "yellowgreen"))
+```
+ 
+Cela se reflète bien une nouvelle fois dans le diagramme en violon. Nous remarquons aisément et de manière flagrante que globalement les étudiants consacrant peu de temps aux réseaux sociaux ont plus de bonnes réponses que les autres. **Grâce à cette analyse bivariée**, nous pouvons nous apercevoir que les étudiants passant beaucoup de temps sur les réseaux sociaux et travaillant peu **ont les résultats les plus faibles au test de culture général.** 
+
+ 
+ 
+Nous pouvons ainsi conclure que, bien que les réseaux sociaux n’aient aucun impact sur la réussite scolaire, <span style="color: red;">**ils influencent négativement le niveau culturel des étudiants.**</span> Cela se traduit par une **diminution de la richesse culturelle, ils sont donc une source d’appauvrissement culturel.** De plus, même ceux qui utilisent fréquemment et de manière intensive les réseaux sociaux ne le font pas généralement pas dans un but informatif mais plutôt pour se divertir. On pourrait même affirmer que pour ceux utilisant les réseaux sociaux comme source d’information, cela pourrait ne pas être optimal. En effet, vu que le test démontre qu’ils ont un niveau culturel moins élevé que leurs pairs utilisant peu les réseaux sociaux. Cela souligne potentiellement <span style="color: red;">**les limites des réseaux sociaux en tant que source d’information, où la prolifération de fausses informations est plus que fréquente.**</span>
+
